@@ -4,6 +4,7 @@
 // @match *://m.facebook.com/*
 // @grant none
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
+// @version 1.0
 // ==/UserScript==
 
 // Hide the back button bar
