@@ -5,7 +5,7 @@
 // @match *://touch.facebook.com/*
 // @grant none
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
-// @version 1.0
+// @version 1.1
 // ==/UserScript==
 
 // Hide the back button bar
