@@ -30,7 +30,7 @@ if (!closePrompt()) {
   var promptObserver = new MutationObserver(closePrompt);
   promptObserver.observe(promptParent, {
     childList: true, 
-    //subtree: true
+    subtree: true
   });
 }
 
@@ -53,7 +53,7 @@ if (topBanner != null) {
     var topObserver = new MutationObserver(closeTopBanner);
     topObserver.observe(topBanner, {
       childList: true, 
-      //subtree: true
+      subtree: true
     });
   }
 }
