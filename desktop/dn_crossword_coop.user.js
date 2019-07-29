@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.0.0
+// @version 1.0.1
 // @namespace thomasa88
 // @match *://korsord.dn.se/*
 // @grant GM_getValue
@@ -70,7 +70,7 @@ function onLetterChange(records) {
       }
       let square = record.target;
       let letter = square.attributes['data-char'].value;
-      if (ws_.readyState = WebSocket.OPEN) {
+      if (ws_ != null && ws_.readyState = WebSocket.OPEN) {
         console.log("SEND", letter)
         ws_.send(JSON.stringify([square.id, letter]));
         square.style.color = '#000000';
