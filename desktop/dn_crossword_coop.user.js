@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.0.1
+// @version 1.0.2
 // @namespace thomasa88
+// @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
 // @grant GM_getValue
 // @grant GM_setValue
@@ -24,10 +25,14 @@
 
 const CHANNEL_ID = 'vCoEbx9CLexyUN8NF1Ed';
 const BASE_URL = 'wss://connect.websocket.in/' + CHANNEL_ID + '?room_id=';
+const BUTTON_BASE_TEXT = '👥 Samarbeta';
+const RANDOM_WORDS = [ 'banan', 'ananas', 'kiwi', 'päron', 'äpple', 'apelsin', 'druva', 'melon', 'smultron', 'blåbär', 'hallon' ];
 
 let ws_;
+let uiRoomId_ = '';
 let ignoreLetterChange_ = 0;
 let button_;
+let buttonStatusText_;
 let crossword_ = null;
 
 function connect(roomId) {
@@ -52,6 +57,8 @@ function onConnected(e) {
   button_.style.background = '#ff0000';
   button_.style.color = '#ffffff';
   button_.style.fontWeight = 'bold';
+  // TODO: HTML sanitize text
+  buttonStatusText_.innerText =  '(' + uiRoomId_ + ')';
 }
 
 function onDisconnected(e) {
@@ -59,6 +66,7 @@ function onDisconnected(e) {
   button_.style.background = '';
   button_.style.color = '';
   button_.style.fontWeight = '';
+  buttonStatusText_.innerText =  '';
 }
 
 function onLetterChange(records) {
@@ -70,7 +78,7 @@ function onLetterChange(records) {
       }
       let square = record.target;
       let letter = square.attributes['data-char'].value;
-      if (ws_ != null && ws_.readyState = WebSocket.OPEN) {
+      if (ws_ != null && ws_.readyState == WebSocket.OPEN) {
         console.log("SEND", letter)
         ws_.send(JSON.stringify([square.id, letter]));
         square.style.color = '#000000';
@@ -97,9 +105,12 @@ function msg(event) {
 
 function addButton() {
   button_ = document.createElement('button');
-  button_.innerText = '👥 Samarbeta';
+  button_.innerText = BUTTON_BASE_TEXT;
   button_.className = 'crossword-button';
   button_.onclick = onCoopClick;
+  buttonStatusText_ = document.createElement('span')
+  buttonStatusText_.style.paddingLeft = '0.5em';
+  button_.appendChild(buttonStatusText_);
   let menu = document.querySelector("div.crossword-menu__button-container");
   menu.appendChild(button_);
 }
@@ -107,17 +118,46 @@ function addButton() {
 function onCoopClick(e) {
   // TODO: Handle all WebSocket states
   if (ws_ == null || ws_.readyState == WebSocket.CLOSED) {
-    // Use something better. Time? Combine with user input?
-    let roomId = GM_getValue("roomId", Math.random().toString().substr(2, 20));
-    roomId = prompt("Ange spel-id (alla måste ange samma)", roomId);
+    let prevRoomId = GM_getValue('roomId', '');
+    let roomId = getRandomRoom();
+    roomId = prompt("Ange spel-id (alla måste ange samma)." + 
+                    (prevRoomId != '' ? "Lämna fältet tomt för att återanvända föregående (" + prevRoomId + ")." : ""),
+                    roomId);
     if (roomId != null) {
+      if (roomId == '') {
+        if (prevRoomId == '') {
+          prevRoomId = getRandomRoom();
+        }
+        roomId = prevRoomId;
+      }
       GM_setValue("roomId", roomId);
-      // TODO: Handle all server room ID limitations
-      connect(roomId.substr(0, 20));
+      uiRoomId_ = roomId;
+      connect(sanitizeRoomId(roomId));
     }
   } else if (ws_.readyState == WebSocket.OPEN) {
     disconnect();
   }
+}
+
+function getRandomRoom() {
+  return getRandomWord() + '-' + getRandomNumber(100, 1000);
+}
+
+function getRandomWord() {
+  return RANDOM_WORDS[Math.floor(Math.random() * RANDOM_WORDS.length)];
+}
+
+function getRandomNumber(minIncl, maxExcl) {
+  return Math.floor(Math.random() * (maxExcl - minIncl)) + minIncl;
+}
+
+// websocket.in restrictions
+function sanitizeRoomId(id) {
+  let sanitized = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+  if (sanitized.length < 2) {
+    sanitized += '__';
+  }
+  return sanitized.substr(0, 20);
 }
 
 function waitLoad() {
