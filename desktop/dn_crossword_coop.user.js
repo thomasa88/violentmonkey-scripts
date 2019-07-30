@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.0.2
+// @version 1.1.0
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -27,6 +27,12 @@ const CHANNEL_ID = 'vCoEbx9CLexyUN8NF1Ed';
 const BASE_URL = 'wss://connect.websocket.in/' + CHANNEL_ID + '?room_id=';
 const BUTTON_BASE_TEXT = '👥 Samarbeta';
 const RANDOM_WORDS = [ 'banan', 'ananas', 'kiwi', 'päron', 'äpple', 'apelsin', 'druva', 'melon', 'smultron', 'blåbär', 'hallon' ];
+let USER_ID = GM_getValue('userId', null);
+if (USER_ID == null) {
+  USER_ID = Math.random() + new Date().toISOString();
+  GM_setValue('userId', USER_ID);
+}
+console.log("USER ID", USER_ID);
 
 let ws_;
 let uiRoomId_ = '';
@@ -34,6 +40,8 @@ let ignoreLetterChange_ = 0;
 let button_;
 let buttonStatusText_;
 let crossword_ = null;
+let selectedSquare_ = null;
+let others_ = {}
 
 function connect(roomId) {
   console.log("CONNECT", roomId);
@@ -69,38 +77,86 @@ function onDisconnected(e) {
   buttonStatusText_.innerText =  '';
 }
 
-function onLetterChange(records) {
+function onCrosswordChange(records) {
+  if (ws_ == null || ws_.readyState != WebSocket.OPEN) {
+    // Not connected
+    return;
+  }
+  let newSelectedSquare = selectedSquare_;
   records.forEach(
     record => {
-      if (ignoreLetterChange_ > 0) {
-        ignoreLetterChange_--;
-        return;
-      }
       let square = record.target;
-      let letter = square.attributes['data-char'].value;
-      if (ws_ != null && ws_.readyState == WebSocket.OPEN) {
-        console.log("SEND", letter)
-        ws_.send(JSON.stringify([square.id, letter]));
+      if (record.attributeName == 'data-char') {
+        if (ignoreLetterChange_ > 0) {
+          ignoreLetterChange_--;
+          return;
+        }
+        let letter = square.attributes['data-char'].value;
+        send('letter', [square.id, letter]);
         square.style.color = '#000000';
+      } else if (record.attributeName == 'class') {
+        if (square.classList.contains('crossword-square--input')) {
+          newSelectedSquare = square;
+        }
       }
     }
   );
+  if (newSelectedSquare != null && newSelectedSquare != selectedSquare_) {
+    selectedSquare_ = newSelectedSquare;
+    send('select', selectedSquare_.id);
+  }
 }
 
+function send(event, data) {
+  let pkg = [window.location.pathname, USER_ID, event, data];
+  console.log("SEND", pkg);
+  ws_.send(JSON.stringify(pkg));
+}
 
-function msg(event) {
-  console.log("GOT", event.data);
-  json = JSON.parse(event.data);
-  let square_id = json[0];
-  let letter = json[1];
-  let square = document.getElementById(square_id);
-  // Will get null if users have different crosswords open
-  if (square != null) {
-    square.innerText = letter;
-    ignoreLetterChange_++;
-    square.attributes['data-char'].value = letter;
-    square.style.color = '#ff0000';
+function msg(e) {
+  let pkg = JSON.parse(e.data);
+  console.log("GOT", pkg);
+  let crosswordName = pkg[0];
+  let sender = pkg[1];
+  let event = pkg[2];
+  let data = pkg[3];
+  if (crosswordName != window.location.pathname) {
+    console.log("Message for wrong crossword");
+    return;
   }
+  if (!(sender in others_)) {
+    others_[sender] = { 'selectedSquare': null };
+  }
+  switch (event) {
+    case 'letter': {
+      let square_id = data[0];
+      let letter = data[1];
+      let square = document.getElementById(square_id);
+      // Will get null if users have different crosswords open
+      if (square != null) {
+        square.innerText = letter;
+        ignoreLetterChange_++;
+        square.attributes['data-char'].value = letter;
+        square.style.color = '#ff0000';
+      }
+      break;
+    }
+    case 'select': {
+      let square_id = data;
+      let square = document.getElementById(square_id);
+      if (square != null) {
+        let prevSquare = others_[sender]['selectedSquare'];
+        if (prevSquare != null && prevSquare != square) {
+          prevSquare.style.border = '';
+        }
+        // TODO: Handle users crossing each other's paths
+        others_[sender]['selectedSquare'] = square;
+        square.style.border = "solid blue 1px";
+      }
+      break;
+    }
+  }
+  
 }
 
 function addButton() {
@@ -171,8 +227,8 @@ function waitLoad() {
 
 function onLoaded() {
   addButton();
-  o = new MutationObserver(onLetterChange);
-  o.observe(crossword_, {attributes: true, attributeFilter: ['data-char'], subtree: true});
+  o = new MutationObserver(onCrosswordChange);
+  o.observe(crossword_, {attributes: true, attributeFilter: ['data-char', 'class'], subtree: true});
   console.log("OBSERVING");
 }
 
