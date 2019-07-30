@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.1.0
+// @version 1.2.0
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -26,7 +26,14 @@
 const CHANNEL_ID = 'vCoEbx9CLexyUN8NF1Ed';
 const BASE_URL = 'wss://connect.websocket.in/' + CHANNEL_ID + '?room_id=';
 const BUTTON_BASE_TEXT = '👥 Samarbeta';
-const RANDOM_WORDS = [ 'banan', 'ananas', 'kiwi', 'päron', 'äpple', 'apelsin', 'druva', 'melon', 'smultron', 'blåbär', 'hallon' ];
+const RANDOM_WORDS = [ 'banan', 'ananas', 'kiwi', 'päron',
+                      'äpple', 'apelsin', 'druva', 'melon', 
+                      'smultron', 'blåbär', 'hallon' ];
+const USER_COLORS = [ '#c0392b', '#e74c3c', '#9b59b6', '#8e44ad',
+                     '#2980b9', '#3498db', '#1abc9c', '#16a085', 
+                     '#27ae60', '#2ecc71', '#f39c12', '#e67e22',
+                     '#d35400' ];
+
 let USER_ID = GM_getValue('userId', null);
 if (USER_ID == null) {
   USER_ID = Math.random() + new Date().toISOString();
@@ -36,6 +43,7 @@ console.log("USER ID", USER_ID);
 
 let ws_;
 let uiRoomId_ = '';
+let userColor_ = '';
 let ignoreLetterChange_ = 0;
 let button_;
 let buttonStatusText_;
@@ -62,7 +70,7 @@ function disconnect() {
 
 function onConnected(e) {
   console.log("CONNECTED");
-  button_.style.background = '#ff0000';
+  button_.style.background = userColor_;
   button_.style.color = '#ffffff';
   button_.style.fontWeight = 'bold';
   // TODO: HTML sanitize text
@@ -93,7 +101,7 @@ function onCrosswordChange(records) {
         }
         let letter = square.attributes['data-char'].value;
         send('letter', [square.id, letter]);
-        square.style.color = '#000000';
+        square.style.color = userColor_;
       } else if (record.attributeName == 'class') {
         if (square.classList.contains('crossword-square--input')) {
           newSelectedSquare = square;
@@ -108,7 +116,7 @@ function onCrosswordChange(records) {
 }
 
 function send(event, data) {
-  let pkg = [window.location.pathname, USER_ID, event, data];
+  let pkg = [window.location.pathname, USER_ID, userColor_, event, data];
   console.log("SEND", pkg);
   ws_.send(JSON.stringify(pkg));
 }
@@ -118,8 +126,9 @@ function msg(e) {
   console.log("GOT", pkg);
   let crosswordName = pkg[0];
   let sender = pkg[1];
-  let event = pkg[2];
-  let data = pkg[3];
+  let color = pkg[2];
+  let event = pkg[3];
+  let data = pkg[4];
   if (crosswordName != window.location.pathname) {
     console.log("Message for wrong crossword");
     return;
@@ -137,7 +146,7 @@ function msg(e) {
         square.innerText = letter;
         ignoreLetterChange_++;
         square.attributes['data-char'].value = letter;
-        square.style.color = '#ff0000';
+        square.style.color = color;
       }
       break;
     }
@@ -151,7 +160,7 @@ function msg(e) {
         }
         // TODO: Handle users crossing each other's paths
         others_[sender]['selectedSquare'] = square;
-        square.style.border = "solid blue 1px";
+        square.style.border = "solid 1px " + color;
       }
       break;
     }
@@ -188,6 +197,7 @@ function onCoopClick(e) {
       }
       GM_setValue("roomId", roomId);
       uiRoomId_ = roomId;
+      userColor_ = getRandomUserColor();
       connect(sanitizeRoomId(roomId));
     }
   } else if (ws_.readyState == WebSocket.OPEN) {
@@ -200,11 +210,15 @@ function getRandomRoom() {
 }
 
 function getRandomWord() {
-  return RANDOM_WORDS[Math.floor(Math.random() * RANDOM_WORDS.length)];
+  return RANDOM_WORDS[getRandomNumber(0, RANDOM_WORDS.length)];
 }
 
 function getRandomNumber(minIncl, maxExcl) {
   return Math.floor(Math.random() * (maxExcl - minIncl)) + minIncl;
+}
+
+function getRandomUserColor() {
+  return USER_COLORS[getRandomNumber(0, USER_COLORS.length)];
 }
 
 // websocket.in restrictions
