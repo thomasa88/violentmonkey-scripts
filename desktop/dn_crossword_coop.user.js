@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.2.0
+// @version 1.3.0
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -99,9 +99,16 @@ function onCrosswordChange(records) {
           ignoreLetterChange_--;
           return;
         }
-        let letter = square.attributes['data-char'].value;
-        send('letter', [square.id, letter]);
-        square.style.color = userColor_;
+        let letter = square.getAttribute('data-char');
+        let oldLetter = 'XXX';
+        if (square.hasAttribute('data-dn-coop-char')) {
+          oldLetter = square.getAttribute('data-dn-coop-char');
+        }
+        if (letter != oldLetter) {
+          square.style.color = userColor_;
+          square.setAttribute('data-dn-coop-char', letter);
+          send('letter', [square.id, letter]);
+        }
       } else if (record.attributeName == 'class') {
         if (square.classList.contains('crossword-square--input')) {
           newSelectedSquare = square;
@@ -145,7 +152,8 @@ function msg(e) {
       if (square != null) {
         square.innerText = letter;
         ignoreLetterChange_++;
-        square.attributes['data-char'].value = letter;
+        square.setAttribute('data-char', letter);
+        square.setAttribute('data-dn-coop-char', letter);
         square.style.color = color;
       }
       break;
