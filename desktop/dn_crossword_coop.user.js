@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.3.0
+// @version 1.3.1
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -49,7 +49,8 @@ let button_;
 let buttonStatusText_;
 let crossword_ = null;
 let selectedSquare_ = null;
-let others_ = {}
+let others_ = {};
+let selectSendTimeout_ = null;
 
 function connect(roomId) {
   console.log("CONNECT", roomId);
@@ -118,6 +119,17 @@ function onCrosswordChange(records) {
   );
   if (newSelectedSquare != null && newSelectedSquare != selectedSquare_) {
     selectedSquare_ = newSelectedSquare;
+    if (selectSendTimeout_ != null) {
+      clearTimeout(selectSendTimeout_);
+    }
+    // Don't send every press reselection, to avoid UI slow-down, if user is moving fast
+    selectSendTimeout_ = setTimeout(sendSelectedSquare, 100);
+  }
+}
+
+function sendSelectedSquare() {
+  selectSendTimeout_ = null;
+  if (ws_ != null && ws_.readyState == WebSocket.OPEN) {
     send('select', selectedSquare_.id);
   }
 }
