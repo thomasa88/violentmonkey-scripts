@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.3.1
+// @version 1.3.2
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -180,7 +180,7 @@ function msg(e) {
         }
         // TODO: Handle users crossing each other's paths
         others_[sender]['selectedSquare'] = square;
-        square.style.border = "solid 1px " + color;
+        square.style.border = "solid 0.1em " + color;
       }
       break;
     }
