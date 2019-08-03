@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name DN - Korsord tillsammans
-// @version 1.3.2
+// @version 1.4.0
 // @namespace thomasa88
 // @license GNU GPL v3. Copyright Thomas Axelsson 2019
 // @match *://korsord.dn.se/*
@@ -76,6 +76,7 @@ function onConnected(e) {
   button_.style.fontWeight = 'bold';
   // TODO: HTML sanitize text
   buttonStatusText_.innerText =  '(' + uiRoomId_ + ')';
+  send('join', null);
 }
 
 function onDisconnected(e) {
@@ -108,7 +109,7 @@ function onCrosswordChange(records) {
         if (letter != oldLetter) {
           square.style.color = userColor_;
           square.setAttribute('data-dn-coop-char', letter);
-          send('letter', [square.id, letter]);
+          send('letter', [square.id, letter, userColor_]);
         }
       } else if (record.attributeName == 'class') {
         if (square.classList.contains('crossword-square--input')) {
@@ -130,12 +131,12 @@ function onCrosswordChange(records) {
 function sendSelectedSquare() {
   selectSendTimeout_ = null;
   if (ws_ != null && ws_.readyState == WebSocket.OPEN) {
-    send('select', selectedSquare_.id);
+    send('select', [selectedSquare_.id, userColor_]);
   }
 }
 
 function send(event, data) {
-  let pkg = [window.location.pathname, USER_ID, userColor_, event, data];
+  let pkg = [window.location.pathname, USER_ID, event, data];
   console.log("SEND", pkg);
   ws_.send(JSON.stringify(pkg));
 }
@@ -145,20 +146,20 @@ function msg(e) {
   console.log("GOT", pkg);
   let crosswordName = pkg[0];
   let sender = pkg[1];
-  let color = pkg[2];
-  let event = pkg[3];
-  let data = pkg[4];
+  let event = pkg[2];
+  let data = pkg[3];
   if (crosswordName != window.location.pathname) {
     console.log("Message for wrong crossword");
     return;
   }
   if (!(sender in others_)) {
-    others_[sender] = { 'selectedSquare': null };
+    others_[sender] = {};
   }
   switch (event) {
     case 'letter': {
       let square_id = data[0];
       let letter = data[1];
+      let color = data[2];
       let square = document.getElementById(square_id);
       // Will get null if users have different crosswords open
       if (square != null) {
@@ -171,7 +172,8 @@ function msg(e) {
       break;
     }
     case 'select': {
-      let square_id = data;
+      let square_id = data[0];
+      let color = data[1];
       let square = document.getElementById(square_id);
       if (square != null) {
         let prevSquare = others_[sender]['selectedSquare'];
@@ -181,6 +183,42 @@ function msg(e) {
         // TODO: Handle users crossing each other's paths
         others_[sender]['selectedSquare'] = square;
         square.style.border = "solid 0.1em " + color;
+      }
+      break;
+    }
+    case 'join': {
+      let send_data = true;
+      // The user with the lowest ID will send all data
+      for (const other in others_) {
+        if (other == sender) {
+          continue;
+        } else if (other < USER_ID) {
+          // "other" will send the data
+          break;
+        }
+      }
+      if (send_data) {
+        console.log("SYNC");
+        // Need to send the list of all other players, to avoid SYNC race when another user joins.
+        // Does not include the sender. Do not need to include USER_ID as "sender" will add it automatically,
+        // when receiving.
+        let users = Object.keys(others_).filter(u => u != sender);
+        send('users', users);
+        // Send all letters in one message?
+        for (const square of crossword_.querySelectorAll('div.crossword-square')) {
+          let letter = square.getAttribute('data-char');
+          let color = square.style.color;
+          if (letter != '') {
+            send('letter', [square.id, letter, color]);
+          }
+        }
+      }
+      break;
+    }
+    case 'users': {
+      const users = data;
+      for (const user of users) {
+        others_[user] = {};
       }
       break;
     }
